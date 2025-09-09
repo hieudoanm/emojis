@@ -1,0 +1,21 @@
+{
+  "name": "emojis",
+  "version": "0.0.1",
+  "description": "Emojis",
+  "keywords": [
+    "emojis"
+  ],
+  "author": "hieudoanm <hieumdoan@gmail.com> (https://hieudoanm.github.io)",
+  "license": "GPL-3.0",
+  "packageManager": "pnpm@10.15.1",
+  "scripts": {
+    "prebuild": "rm -rf ./docs",
+    "build": "docsify init ./docs",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "docsify-cli": "4.4.4",
+    "husky": "9.1.7",
+    "rimraf": "6.0.1"
+  }
+}
