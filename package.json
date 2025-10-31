@@ -16,6 +16,6 @@
   "devDependencies": {
     "docsify-cli": "4.4.4",
     "husky": "9.1.7",
-    "rimraf": "6.0.1"
+    "rimraf": "6.1.0"
   }
 }
