@@ -44,9 +44,6 @@ func Get(url string, options Options) ([]byte, error) {
 		fmt.Println(RESPONSE_ERROR, ":", bodyError)
 		return nil, bodyError
 	}
-	fmt.Println(RESPONSE_STATUS, ":", response.Status)
-	fmt.Println(RESPONSE_BODY, ":", string(body))
-
 	// Return response body
 	return body, nil
 }
