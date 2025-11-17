@@ -1,10 +1,30 @@
 {
   "name": "@status/frontend",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "private": true,
+  "description": "GitHub",
+  "keywords": [
+    "status"
+  ],
+  "homepage": "https://github.com/hieudoanm/status#readme",
+  "bugs": {
+    "url": "https://github.com/hieudoanm/status/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/hieudoanm/status.git"
+  },
+  "license": "GPL-3.0",
+  "author": "hieudoanm <hieumdoan@gmail.com> (https://hieudoanm.github.io)",
+  "packageManager": "pnpm@10.22.0",
   "scripts": {
+    "format": "prettier --cache --write .",
+    "predev": "kill-port 3000",
     "dev": "next dev",
+    "prebuild": "rimraf .next ../../docs",
     "build": "next build",
+    "postbuild": "touch ../../docs/.nojekyll",
+    "prestart": "kill-port 3000",
     "start": "next start",
     "lint": "eslint"
   },
