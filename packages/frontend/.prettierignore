@@ -46,3 +46,6 @@ next-env.d.ts
 # mobile
 mobile/android
 mobile/ios
+
+# tauri
+/src-tauri
