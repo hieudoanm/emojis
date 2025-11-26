@@ -10,34 +10,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// allCmd represents the status command
+var debug bool // debug flag
+
+// allCmd represents the "all" status command
 var allCmd = &cobra.Command{
 	Use:   "all",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "Show status of all services",
+	Long:  `Show the current status for all configured services, optionally with debug logging.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// Iterate over all services and show their status
 		for name, url := range configs.Services {
-			status.PrintDescriptiveStatus(name, url)
+			// Pass the debug flag into the requests.Options
+			status.PrintDescriptiveStatus(name, url, debug)
 		}
-
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(allCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// allCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// allCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// Add a local flag --debug to enable verbose debug logging
+	allCmd.Flags().BoolVarP(&debug, "debug", "d", false, "Enable debug logging for HTTP requests")
 }

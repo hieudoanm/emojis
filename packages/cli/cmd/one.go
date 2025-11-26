@@ -12,17 +12,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// oneCmd represents the status command
+// oneCmd represents the "one" status command
 var oneCmd = &cobra.Command{
 	Use:   "one",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "Show status of a single service",
+	Long:  `Prompt the user to select a service and show its full status, optionally with debug logging.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// Build the service options
 		options := make([]string, 0, len(configs.Services))
 		for k := range configs.Services {
 			options = append(options, k)
@@ -30,33 +26,25 @@ to quickly create a Cobra application.`,
 
 		// Step 1: Choose service
 		var service string
-
 		servicePrompt := &survey.Select{
 			Message:  "Choose a service:",
 			Options:  options,
 			Default:  "github",
-			PageSize: 1,
+			PageSize: 5,
 		}
 		if err := survey.AskOne(servicePrompt, &service); err != nil {
 			log.Fatalf("Failed to choose service: %v", err)
 		}
 
-		var url string = configs.Services[service]
-		// Step 2
-		status.PrintFullStatus(url)
+		// Step 2: Fetch and display status with debug flag
+		url := configs.Services[service]
+		status.PrintFullStatus(url, debug)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(oneCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// oneCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// oneCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// Add a local --debug flag for this command
+	oneCmd.Flags().BoolVarP(&debug, "debug", "d", false, "Enable debug logging for HTTP requests")
 }
