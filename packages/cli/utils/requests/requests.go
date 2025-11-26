@@ -13,132 +13,200 @@ import (
 	"time"
 )
 
+// ------------------------
+// Header Keys
+// ------------------------
 const (
-	CONTENT_TYPE_HEADER           = "Content-Type"
-	CONTENT_TYPE_APPLICATION_JSON = "application/json"
-	RESPONSE_ERROR                = "Response Error"
-	RESPONSE_STATUS               = "Response Status"
-	RESPONSE_BODY                 = "Response Body"
+	HEADER_CONTENT_TYPE     = "Content-Type"
+	HEADER_ACCEPT           = "Accept"
+	HEADER_AUTHORIZATION    = "Authorization"
+	HEADER_USER_AGENT       = "User-Agent"
+	HEADER_CACHE_CONTROL    = "Cache-Control"
+	HEADER_CONTENT_LENGTH   = "Content-Length"
+	HEADER_CONTENT_ENCODING = "Content-Encoding"
+	HEADER_ACCEPT_ENCODING  = "Accept-Encoding"
+	HEADER_ACCEPT_LANGUAGE  = "Accept-Language"
 )
 
-// Global HTTP client with timeout
-var client = &http.Client{
-	Timeout: 15 * time.Second,
-}
+// ------------------------
+// MIME / Content-Type Values
+// ------------------------
+const (
+	CONTENT_TYPE_JSON            = "application/json"
+	CONTENT_TYPE_XML             = "application/xml"
+	CONTENT_TYPE_FORM_URLENCODED = "application/x-www-form-urlencoded"
+	CONTENT_TYPE_TEXT_PLAIN      = "text/plain"
+	CONTENT_TYPE_TEXT_HTML       = "text/html"
+	CONTENT_TYPE_MULTIPART_FORM  = "multipart/form-data"
+)
+
+// ------------------------
+// Log Labels
+// ------------------------
+const (
+	LOG_RESPONSE_STATUS = "Response Status"
+	LOG_RESPONSE_BODY   = "Response Body"
+)
+
+var client = &http.Client{Timeout: 15 * time.Second}
 
 type Options struct {
 	Header  http.Header
 	Query   map[string]string
 	Body    interface{}
-	Timeout time.Duration // optional per-request timeout
-	Retries int           // retry count
+	Timeout time.Duration
+	Retries int
 }
 
-// Helper: check if error is retryable (network issues)
-func isRetryableError(err error) bool {
-	var netErr net.Error
-	return errors.As(err, &netErr)
+// ------------------------
+// Small helper functions
+// ------------------------
+
+func buildURL(rawURL string, query map[string]string) (*url.URL, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, err
+	}
+	if query != nil {
+		q := u.Query()
+		for k, v := range query {
+			q.Set(k, v)
+		}
+		u.RawQuery = q.Encode()
+	}
+	return u, nil
 }
 
-// Helper: is 5xx → retryable server error
-func isRetryableStatus(code int) bool {
-	return code >= 500 && code <= 599
+func buildBody(body interface{}) (io.Reader, error) {
+	if body == nil {
+		return nil, nil
+	}
+	jsonBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewBuffer(jsonBytes), nil
+}
+
+func createRequest(ctx context.Context, method string, u *url.URL, body io.Reader, opt Options) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), body)
+	if err != nil {
+		return nil, err
+	}
+	for k, values := range opt.Header {
+		for _, v := range values {
+			req.Header.Add(k, v)
+		}
+	}
+	if opt.Body != nil {
+		req.Header.Set(HEADER_CONTENT_TYPE, CONTENT_TYPE_JSON)
+	}
+	return req, nil
+}
+
+func shouldRetry(err error, status int, attempt, maxRetries int) bool {
+	if attempt >= maxRetries {
+		return false
+	}
+	if err != nil {
+		var netErr net.Error
+		return errors.As(err, &netErr)
+	}
+	return status >= 500 && status <= 599
+}
+
+func backoff(attempt int) {
+	time.Sleep(time.Duration(attempt+1) * 300 * time.Millisecond)
+}
+
+// ------------------------
+// Main request function
+// ------------------------
+func handleResponse(resp *http.Response) ([]byte, int, error) {
+	if resp == nil {
+		return nil, 0, errors.New("nil response")
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, resp.StatusCode, err
+	}
+
+	return body, resp.StatusCode, nil
+}
+
+func attemptRequest(
+	method string,
+	rawURL string,
+	options Options,
+	ctx context.Context,
+) (*http.Response, error) {
+
+	urlObj, err := buildURL(rawURL, options.Query)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := buildBody(options.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := createRequest(ctx, method, urlObj, body, options)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.Do(req)
 }
 
 func doRequest(method, rawURL string, options Options) ([]byte, error) {
 	maxRetries := options.Retries
-	if maxRetries < 0 {
-		maxRetries = 0
+	timeout := options.Timeout
+	if timeout == 0 {
+		timeout = 10 * time.Second
 	}
 
 	var lastErr error
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 
-		// --- TIMEOUT ---
-		timeout := options.Timeout
-		if timeout == 0 {
-			timeout = 10 * time.Second
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
 
-		// --- Build URL ---
-		u, urlErr := url.Parse(rawURL)
-		if urlErr != nil {
-			return nil, urlErr
-		}
+		resp, err := attemptRequest(method, rawURL, options, ctx)
+		cancel()
 
-		if options.Query != nil {
-			q := u.Query()
-			for k, v := range options.Query {
-				q.Set(k, v)
-			}
-			u.RawQuery = q.Encode()
-		}
-
-		// --- Body ---
-		var bodyReader io.Reader = nil
-		if options.Body != nil {
-			jsonBytes, err := json.Marshal(options.Body)
-			if err != nil {
-				return nil, err
-			}
-			bodyReader = bytes.NewBuffer(jsonBytes)
-		}
-
-		// --- Create request ---
-		req, reqErr := http.NewRequestWithContext(ctx, method, u.String(), bodyReader)
-		if reqErr != nil {
-			return nil, reqErr
-		}
-
-		// Headers
-		for k, values := range options.Header {
-			for _, v := range values {
-				req.Header.Add(k, v)
-			}
-		}
-		if options.Body != nil {
-			req.Header.Set(CONTENT_TYPE_HEADER, CONTENT_TYPE_APPLICATION_JSON)
-		}
-
-		// --- Execute ---
-		resp, err := client.Do(req)
 		if err != nil {
 			lastErr = err
-
-			// retry network errors
-			if attempt < maxRetries && isRetryableError(err) {
-				time.Sleep(time.Duration(attempt+1) * 300 * time.Millisecond)
+			if shouldRetry(err, 0, attempt, maxRetries) {
+				backoff(attempt)
 				continue
 			}
 			return nil, err
 		}
 
-		// Ensure close
-		respBody, readErr := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		body, status, readErr := handleResponse(resp)
 		if readErr != nil {
 			return nil, readErr
 		}
 
-		// Retry on 5xx
-		if isRetryableStatus(resp.StatusCode) && attempt < maxRetries {
+		if shouldRetry(nil, status, attempt, maxRetries) {
 			lastErr = fmt.Errorf("server error: %v", resp.Status)
-			time.Sleep(time.Duration(attempt+1) * 300 * time.Millisecond)
+			backoff(attempt)
 			continue
 		}
 
-		fmt.Println(RESPONSE_STATUS, ":", resp.Status)
-		fmt.Println(RESPONSE_BODY, ":", string(respBody))
-		return respBody, nil
+		fmt.Println(LOG_RESPONSE_STATUS, ":", resp.Status)
+		fmt.Println(LOG_RESPONSE_BODY, ":", string(body))
+
+		return body, nil
 	}
 
 	return nil, fmt.Errorf("request failed after retries: %w", lastErr)
 }
 
-// Methods
+// Public methods
 func Get(url string, options Options) ([]byte, error) { return doRequest(http.MethodGet, url, options) }
 func Post(url string, options Options) ([]byte, error) {
 	return doRequest(http.MethodPost, url, options)
