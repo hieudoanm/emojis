@@ -3,8 +3,7 @@ package status
 import (
 	"encoding/json"
 	"fmt"
-
-	http "status-cli/utils/http"
+	"status-cli/utils/requests"
 )
 
 // Page ...
@@ -30,7 +29,7 @@ type Response struct {
 
 // GetStatus ...
 func GetStatus(url string) (Response, error) {
-	responseByte, getError := http.Get(url, http.Options{})
+	responseByte, getError := requests.Get(url, requests.Options{})
 	if getError != nil {
 		fmt.Println("getError: ", getError)
 		return Response{}, getError
