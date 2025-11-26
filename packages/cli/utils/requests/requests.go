@@ -2,11 +2,15 @@ package requests
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 const (
@@ -17,80 +21,124 @@ const (
 	RESPONSE_BODY                 = "Response Body"
 )
 
-var client = &http.Client{}
-
-// Options lets you pass headers, query params and JSON body.
-type Options struct {
-	Header http.Header
-	Query  map[string]string
-	Body   interface{} // accept any struct/map
+// Global HTTP client with timeout
+var client = &http.Client{
+	Timeout: 15 * time.Second,
 }
 
-// Core reusable request helper
+type Options struct {
+	Header  http.Header
+	Query   map[string]string
+	Body    interface{}
+	Timeout time.Duration // optional per-request timeout
+	Retries int           // retry count
+}
+
+// Helper: check if error is retryable (network issues)
+func isRetryableError(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr)
+}
+
+// Helper: is 5xx → retryable server error
+func isRetryableStatus(code int) bool {
+	return code >= 500 && code <= 599
+}
+
 func doRequest(method, rawURL string, options Options) ([]byte, error) {
-
-	// --- Build URL with query params ---
-	u, urlErr := url.Parse(rawURL)
-	if urlErr != nil {
-		return nil, urlErr
+	maxRetries := options.Retries
+	if maxRetries < 0 {
+		maxRetries = 0
 	}
 
-	if options.Query != nil {
-		q := u.Query()
-		for k, v := range options.Query {
-			q.Set(k, v)
+	var lastErr error
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+
+		// --- TIMEOUT ---
+		timeout := options.Timeout
+		if timeout == 0 {
+			timeout = 10 * time.Second
 		}
-		u.RawQuery = q.Encode()
-	}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
 
-	// --- Prepare body ---
-	var bodyReader io.Reader = nil
-	if options.Body != nil {
-		jsonBytes, err := json.Marshal(options.Body)
+		// --- Build URL ---
+		u, urlErr := url.Parse(rawURL)
+		if urlErr != nil {
+			return nil, urlErr
+		}
+
+		if options.Query != nil {
+			q := u.Query()
+			for k, v := range options.Query {
+				q.Set(k, v)
+			}
+			u.RawQuery = q.Encode()
+		}
+
+		// --- Body ---
+		var bodyReader io.Reader = nil
+		if options.Body != nil {
+			jsonBytes, err := json.Marshal(options.Body)
+			if err != nil {
+				return nil, err
+			}
+			bodyReader = bytes.NewBuffer(jsonBytes)
+		}
+
+		// --- Create request ---
+		req, reqErr := http.NewRequestWithContext(ctx, method, u.String(), bodyReader)
+		if reqErr != nil {
+			return nil, reqErr
+		}
+
+		// Headers
+		for k, values := range options.Header {
+			for _, v := range values {
+				req.Header.Add(k, v)
+			}
+		}
+		if options.Body != nil {
+			req.Header.Set(CONTENT_TYPE_HEADER, CONTENT_TYPE_APPLICATION_JSON)
+		}
+
+		// --- Execute ---
+		resp, err := client.Do(req)
 		if err != nil {
+			lastErr = err
+
+			// retry network errors
+			if attempt < maxRetries && isRetryableError(err) {
+				time.Sleep(time.Duration(attempt+1) * 300 * time.Millisecond)
+				continue
+			}
 			return nil, err
 		}
-		bodyReader = bytes.NewBuffer(jsonBytes)
-	}
 
-	// --- Create request ---
-	req, reqErr := http.NewRequest(method, u.String(), bodyReader)
-	if reqErr != nil {
-		return nil, reqErr
-	}
-
-	// --- Set headers ---
-	for key, values := range options.Header {
-		for _, v := range values {
-			req.Header.Add(key, v)
+		// Ensure close
+		respBody, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if readErr != nil {
+			return nil, readErr
 		}
+
+		// Retry on 5xx
+		if isRetryableStatus(resp.StatusCode) && attempt < maxRetries {
+			lastErr = fmt.Errorf("server error: %v", resp.Status)
+			time.Sleep(time.Duration(attempt+1) * 300 * time.Millisecond)
+			continue
+		}
+
+		fmt.Println(RESPONSE_STATUS, ":", resp.Status)
+		fmt.Println(RESPONSE_BODY, ":", string(respBody))
+		return respBody, nil
 	}
 
-	if options.Body != nil {
-		req.Header.Set(CONTENT_TYPE_HEADER, CONTENT_TYPE_APPLICATION_JSON)
-	}
-
-	// --- Execute ---
-	resp, respErr := client.Do(req)
-	if respErr != nil {
-		return nil, respErr
-	}
-	defer resp.Body.Close()
-
-	// --- Read output ---
-	respBody, readErr := io.ReadAll(resp.Body)
-	if readErr != nil {
-		return nil, readErr
-	}
-
-	// Optional logging
-	fmt.Println(RESPONSE_STATUS, ":", resp.Status)
-	fmt.Println(RESPONSE_BODY, ":", string(respBody))
-
-	// --- Return response ---
-	return respBody, nil
+	return nil, fmt.Errorf("request failed after retries: %w", lastErr)
 }
 
+// Methods
 func Get(url string, options Options) ([]byte, error) { return doRequest(http.MethodGet, url, options) }
 func Post(url string, options Options) ([]byte, error) {
 	return doRequest(http.MethodPost, url, options)
