@@ -43,7 +43,7 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "9.39.1",
     "eslint-config-next": "16.0.4",
-    "kill-port": "2.0.3",
+    "kill-port": "2.0.1",
     "prettier": "3.6.2",
     "prettier-plugin-tailwindcss": "0.7.1",
     "rimraf": "6.1.2",

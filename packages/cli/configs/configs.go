@@ -29,4 +29,6 @@ var Services map[string]string = map[string]string{
 	"bitbucket": "https://bitbucket.status.atlassian.com/api/v2/status.json",
 	"github":    "https://www.githubstatus.com/api/v2/status.json",
 	"npm":       "https://status.npmjs.org/api/v2/status.json",
+	"canva":     "https://www.canvastatus.com/api/v2/status.json",
+	"figma":     "https://status.figma.com/api/v2/status.json",
 }
