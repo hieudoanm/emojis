@@ -67,11 +67,11 @@ importers:
         specifier: 2.0.1
         version: 2.0.1
       prettier:
-        specifier: 3.7.0
-        version: 3.7.0
+        specifier: 3.7.1
+        version: 3.7.1
       prettier-plugin-tailwindcss:
         specifier: 0.7.1
-        version: 0.7.1(prettier@3.7.0)
+        version: 0.7.1(prettier@3.7.1)
       rimraf:
         specifier: 6.1.2
         version: 6.1.2
@@ -2015,8 +2015,8 @@ packages:
       prettier-plugin-svelte:
         optional: true
 
-  prettier@3.7.0:
-    resolution: {integrity: sha512-pBiBj/gjRY9Qpk1b7cDda6Rbwvkaggos779AHQ0Ek/odwDx6xG6DRBxtnp1QmxbuD7pAO8/SQ8vuhtGv9LoLWA==}
+  prettier@3.7.1:
+    resolution: {integrity: sha512-RWKXE4qB3u5Z6yz7omJkjWwmTfLdcbv44jUVHC5NpfXwFGzvpQM798FGv/6WNK879tc+Cn0AAyherCl1KjbyZQ==}
     engines: {node: '>=14'}
     hasBin: true
 
@@ -4455,11 +4455,11 @@ snapshots:
 
   prelude-ls@1.2.1: {}
 
-  prettier-plugin-tailwindcss@0.7.1(prettier@3.7.0):
+  prettier-plugin-tailwindcss@0.7.1(prettier@3.7.1):
     dependencies:
-      prettier: 3.7.0
+      prettier: 3.7.1
 
-  prettier@3.7.0: {}
+  prettier@3.7.1: {}
 
   prompts@2.4.2:
     dependencies:
