@@ -1,17 +1,17 @@
 {
-  "name": "@status/cli",
+  "name": "@status/app",
   "version": "0.0.1",
-  "description": "Status",
+  "description": "status",
   "keywords": [
     "status"
   ],
-  "homepage": "https://github.com/hieudoanm/status#readme",
+  "homepage": "https://hieudoanm.github.io/status",
   "bugs": {
     "url": "https://github.com/hieudoanm/status/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hieudoanm/status.git"
+    "url": "git+ssh://git@github.com/hieudoanm/status.git"
   },
   "license": "GPL-3.0",
   "author": "hieudoanm <hieumdoan@gmail.com> (https://hieudoanm.github.io)",
@@ -20,7 +20,9 @@
     "node": "24.12.0"
   },
   "scripts": {
+    "dev": "turbo run dev",
     "lint": "turbo run lint",
+    "test": "turbo run test",
     "build": "turbo run build",
     "format": "turbo run format",
     "prepare": "husky || true"
